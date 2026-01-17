@@ -37,7 +37,6 @@ export default function DashboardLayout({
         { name: 'Dashboard', href: '/dashboard', icon: Home },
         { name: 'Your Wardrobe', href: '/dashboard/wardrobe', icon: Shirt },
         { name: 'My Mockups', href: '/dashboard/library', icon: ImagesIcon },
-        { name: 'Templates', href: '/dashboard/templates', icon: LayoutTemplate },
         { name: 'Settings', href: '/dashboard/settings', icon: Settings },
     ];
 

@@ -4,7 +4,7 @@ import { useState, useRef, DragEvent, useEffect } from 'react';
 import { MagicLoader } from '@/components/ui/loaders';
 import { useRouter } from 'next/navigation';
 import { User, Image as ImageIcon, Briefcase, Sun, Globe, Shirt } from 'lucide-react';
-import { apiFetch, Mockup } from '@/lib/api';
+import { apiFetch, Mockup, API_BASE_URL } from '@/lib/api';
 
 export default function CreateMockupPage() {
     const router = useRouter();
@@ -20,6 +20,14 @@ export default function CreateMockupPage() {
     // Configuration State
     const [modelGender, setModelGender] = useState('female');
     const [modelEthnicity, setModelEthnicity] = useState('diverse');
+    const [modelAge, setModelAge] = useState('20-30');
+    const [modelSkin, setModelSkin] = useState('fair skin');
+    const [modelType, setModelType] = useState('tall');
+    const [modelBody, setModelBody] = useState('Athletic');
+    const [modelMood, setModelMood] = useState('attitude');
+    const [modelPose, setModelPose] = useState('casual standing pose with hands in pockets');
+    const [hairStyle, setHairStyle] = useState('mullet');
+    const [hairColor, setHairColor] = useState('black');
     const [background, setBackground] = useState('studio_white');
 
     // Modal States
@@ -86,22 +94,55 @@ export default function CreateMockupPage() {
             const formData = new FormData();
             formData.append('input_image', selectedFile);
             formData.append('garment_type', garmentType);
-            formData.append('image_size', '1080x1350'); // Default
+            formData.append('image_size', '1080x566'); // Update default size per request
 
-            // Model JSON
+            // Model JSON - using defaults from request, with some UI overrides if available
             const modelData = {
-                gender: modelGender,
-                // ethnicity: modelEthnicity // API might expect specific format, sending ID for now or simplistic
-                // Mapping ID to description if needed, or just sending ID if API understands
-                ethnicity: modelEthnicity
+                gender: modelGender, // From UI
+                age_group: modelAge,
+                model_region: "Indian", // Should ideally map from UI 'ethnicity'
+                model_color: modelSkin,
+                model_type: modelType,
+                mood: modelMood,
+                body_type: modelBody,
+                hair_style: hairStyle,
+                hair_color: hairColor,
+                pose: modelPose
             };
+            // Simple mapping for current UI ethnicity to model_region for better UX
+            if (modelEthnicity === 'diverse') modelData.model_region = "Global";
+            if (modelEthnicity === 'caucasian') modelData.model_region = "European";
+            if (modelEthnicity === 'african') modelData.model_region = "African";
+            if (modelEthnicity === 'asian') modelData.model_region = "East Asian";
+            if (modelEthnicity === 'latino') modelData.model_region = "Latino";
+            if (modelEthnicity === 'south_asian') modelData.model_region = "Indian";
+            if (modelEthnicity === 'middle_eastern') modelData.model_region = "Middle Eastern";
+
             formData.append('model', JSON.stringify(modelData));
 
             // Background JSON
+            // Map simple IDs to the complex object
             const bgData = {
-                type: background
+                location: "street",
+                lighting: "soft natural lighting with fill light"
             };
+            if (background === 'studio_white') { bgData.location = "studio"; bgData.lighting = "studio lighting"; }
+            if (background === 'street_style') { bgData.location = "street"; bgData.lighting = "natural sunlight"; }
+            if (background === 'nature') { bgData.location = "forest"; bgData.lighting = "dappled sunlight"; }
+            if (background === 'industrial') { bgData.location = "warehouse"; bgData.lighting = "dramatic lighting"; }
+            if (background === 'cafe') { bgData.location = "cafe"; bgData.lighting = "warm indoor lighting"; }
+            if (background === 'beach') { bgData.location = "beach"; bgData.lighting = "bright sunlight"; }
+            if (background === 'luxury_store') { bgData.location = "luxury store"; bgData.lighting = "interior retail lighting"; }
+            if (background === 'minimalist_home') { bgData.location = "minimalist living room"; bgData.lighting = "soft window light"; }
+
             formData.append('background', JSON.stringify(bgData));
+
+            // Extra JSON
+            const extraData = {
+                camera_angle: "slightly below eye level",
+                style: "modern street style photography"
+            };
+            formData.append('extra', JSON.stringify(extraData));
 
             // 1. Initiate Generation
             const startResponse: any = await apiFetch('/pixel/mockup/', {
@@ -109,21 +150,40 @@ export default function CreateMockupPage() {
                 body: formData,
             });
 
-            const jobId = startResponse.data?.id;
-            if (!jobId) throw new Error('Failed to start generation');
+            const jobData = startResponse.data;
+            if (!jobData?.id) throw new Error('Failed to start generation');
+
+            // Check if already completed
+            if (jobData.status === 'COMPLETED') {
+                let resultUrl = jobData.mockup || jobData.image;
+                if (resultUrl && !resultUrl.startsWith('http')) {
+                    resultUrl = `${API_BASE_URL}${resultUrl}`;
+                }
+                setPreviewUrl(resultUrl);
+                setIsGenerating(false);
+                return;
+            }
+
+            const jobId = jobData.id;
 
             // 2. Poll for Status
             const pollInterval = setInterval(async () => {
                 try {
                     // Fetch list to find our job (optimally API has /pixel/mockup/{id})
-                    // Assuming list for now as per docs
                     const listResponse: any = await apiFetch('/pixel/mockup/');
-                    const job = listResponse.find((j: any) => j.id === jobId);
+
+                    // Handle wrapped response { data: [...] } or direct array [...]
+                    const jobs = Array.isArray(listResponse) ? listResponse : (Array.isArray(listResponse.data) ? listResponse.data : []);
+                    const job = jobs.find((j: any) => j.id === jobId);
 
                     if (job) {
                         if (job.status === 'COMPLETED') {
                             clearInterval(pollInterval);
-                            setPreviewUrl(job.mockup || job.image); // Use result URL
+                            let resultUrl = job.mockup || job.image;
+                            if (resultUrl && !resultUrl.startsWith('http')) {
+                                resultUrl = `${API_BASE_URL}${resultUrl}`;
+                            }
+                            setPreviewUrl(resultUrl);
                             setIsGenerating(false);
                             // Optionally refresh history list if we have one
                         } else if (job.status === 'FAILED') {
@@ -334,7 +394,7 @@ export default function CreateMockupPage() {
                                     <Shirt className="h-3 w-3" /> Garment Type
                                 </label>
                                 <div className="grid grid-cols-3 gap-2">
-                                    {['T-Shirt', 'Hoodie', 'Dress', 'Shirt', 'Jeans', 'Jacket'].map(type => (
+                                    {['T-Shirt', 'Hoodie', 'Dress', 'Shirt', 'Jeans', 'Jacket', 'Saree', 'Salwar Suit', 'Kurta', 'Lehenga', 'Skirt', 'Shorts'].map(type => (
                                         <button
                                             key={type}
                                             onClick={() => setGarmentType(type.toLowerCase())}
@@ -350,12 +410,12 @@ export default function CreateMockupPage() {
                             </div>
 
                             {/* 2. Model Settings (Horizontal Scroll) */}
-                            <div className="space-y-3">
+                            <div className="space-y-4">
                                 <div className="flex items-center justify-between">
                                     <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-500">
                                         <User className="h-3 w-3" /> Model
                                     </label>
-                                    <button onClick={() => setShowEthnicityModal(true)} className="text-xs font-semibold text-indigo-600 hover:text-indigo-500 dark:text-indigo-400">View All</button>
+                                    <button onClick={() => setShowEthnicityModal(true)} className="text-xs font-semibold text-indigo-600 hover:text-indigo-500 dark:text-indigo-400">View All Regions</button>
                                 </div>
 
                                 {/* Gender Tabs */}
@@ -400,6 +460,96 @@ export default function CreateMockupPage() {
                                         <div className="text-xs font-bold">+</div>
                                     </button>
                                 </div>
+
+                                {/* Detailed Model Parameters */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-medium text-gray-400 uppercase">Age Group</label>
+                                        <select
+                                            value={modelAge}
+                                            onChange={(e) => setModelAge(e.target.value)}
+                                            className="w-full rounded-lg border border-gray-200 bg-white/50 px-2 py-1.5 text-xs text-gray-900 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 dark:border-gray-700 dark:bg-gray-800/50 dark:text-white"
+                                        >
+                                            {['18-25', '20-30', '30-40', '40-50', '50+'].map(a => <option key={a} value={a}>{a}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-medium text-gray-400 uppercase">Body Type</label>
+                                        <select
+                                            value={modelBody}
+                                            onChange={(e) => setModelBody(e.target.value)}
+                                            className="w-full rounded-lg border border-gray-200 bg-white/50 px-2 py-1.5 text-xs text-gray-900 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 dark:border-gray-700 dark:bg-gray-800/50 dark:text-white"
+                                        >
+                                            {['Athletic', 'Slim', 'Curvy', 'Muscular', 'Average'].map(b => <option key={b} value={b}>{b}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-medium text-gray-400 uppercase">Skin Tone</label>
+                                        <select
+                                            value={modelSkin}
+                                            onChange={(e) => setModelSkin(e.target.value)}
+                                            className="w-full rounded-lg border border-gray-200 bg-white/50 px-2 py-1.5 text-xs text-gray-900 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 dark:border-gray-700 dark:bg-gray-800/50 dark:text-white"
+                                        >
+                                            {['fair skin', 'medium skin', 'olive skin', 'dark skin', 'pale skin'].map(s => <option key={s} value={s}>{s}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-medium text-gray-400 uppercase">Model Type</label>
+                                        <select
+                                            value={modelType}
+                                            onChange={(e) => setModelType(e.target.value)}
+                                            className="w-full rounded-lg border border-gray-200 bg-white/50 px-2 py-1.5 text-xs text-gray-900 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 dark:border-gray-700 dark:bg-gray-800/50 dark:text-white"
+                                        >
+                                            {['tall', 'petite', 'plus size', 'standard'].map(t => <option key={t} value={t}>{t}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-medium text-gray-400 uppercase">Mood</label>
+                                        <select
+                                            value={modelMood}
+                                            onChange={(e) => setModelMood(e.target.value)}
+                                            className="w-full rounded-lg border border-gray-200 bg-white/50 px-2 py-1.5 text-xs text-gray-900 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 dark:border-gray-700 dark:bg-gray-800/50 dark:text-white"
+                                        >
+                                            {['attitude', 'happy', 'serious', 'neutral', 'elegant'].map(m => <option key={m} value={m}>{m}</option>)}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2 pt-2 border-t border-gray-100 dark:border-gray-700/50">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-medium text-gray-400 uppercase">Hair Style</label>
+                                            <input
+                                                type="text"
+                                                value={hairStyle}
+                                                onChange={(e) => setHairStyle(e.target.value)}
+                                                className="w-full rounded-lg border border-gray-200 bg-white/50 px-2 py-1.5 text-xs text-gray-900 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 dark:border-gray-700 dark:bg-gray-800/50 dark:text-white"
+                                                placeholder="e.g. mullet"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-medium text-gray-400 uppercase">Hair Color</label>
+                                            <input
+                                                type="text"
+                                                value={hairColor}
+                                                onChange={(e) => setHairColor(e.target.value)}
+                                                className="w-full rounded-lg border border-gray-200 bg-white/50 px-2 py-1.5 text-xs text-gray-900 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 dark:border-gray-700 dark:bg-gray-800/50 dark:text-white"
+                                                placeholder="e.g. black"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-medium text-gray-400 uppercase">Pose</label>
+                                        <input
+                                            type="text"
+                                            value={modelPose}
+                                            onChange={(e) => setModelPose(e.target.value)}
+                                            className="w-full rounded-lg border border-gray-200 bg-white/50 px-2 py-1.5 text-xs text-gray-900 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 dark:border-gray-700 dark:bg-gray-800/50 dark:text-white"
+                                            placeholder="e.g. casual standing"
+                                        />
+                                    </div>
+                                </div>
+
                             </div>
 
                             {/* 3. Environment (Horizontal Scroll) */}
