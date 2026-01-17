@@ -76,7 +76,7 @@ export default function CreateWardrobePage() {
             formData.append('input_image', selectedFile);
             formData.append('bg_color', selectedColorId);
 
-            await apiFetch('/pixel/wardrobe/', {
+            await apiFetch('/pixel/wardrobe', {
                 method: 'POST',
                 body: formData,
             });
