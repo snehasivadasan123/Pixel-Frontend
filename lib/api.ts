@@ -60,6 +60,10 @@ export const apiFetch = async (endpoint: string, options: FetchOptions = {}) => 
         headers['Content-Type'] = 'application/json';
     }
 
+    // Bypass ngrok browser warning (for free tier)
+    headers['ngrok-skip-browser-warning'] = 'true';
+    headers['User-Agent'] = 'pixelweave-client'; // Custom UA often bypasses checks
+
     const config: RequestInit = {
         ...options,
         headers,
@@ -68,7 +72,9 @@ export const apiFetch = async (endpoint: string, options: FetchOptions = {}) => 
     let response;
     try {
         console.log(`[API] Fetching: ${API_BASE_URL}${endpoint}`);
+        console.log('[API] Headers:', headers);
         response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+        console.log(`[API] Response Status: ${response.status}`);
     } catch (error) {
         console.error('[API] Network Error:', error);
         throw new Error(`Network error: Unable to reach ${API_BASE_URL}${endpoint}. check your internet connection or server URL.`);
