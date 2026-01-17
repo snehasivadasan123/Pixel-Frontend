@@ -15,8 +15,10 @@ import {
     Sun,
     Zap,
     Sparkles,
-    Shirt
+    Shirt,
+    LogOut
 } from 'lucide-react';
+import { clearAccessToken } from '@/lib/api';
 
 export default function DashboardLayout({
     children,
@@ -138,7 +140,17 @@ export default function DashboardLayout({
 
                             {/* Theme Toggle & User */}
                             <div className="flex items-center justify-between gap-2 px-2">
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => {
+                                            clearAccessToken();
+                                            window.location.href = '/login';
+                                        }}
+                                        className="rounded-full p-2 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-500 dark:text-gray-400 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                                        title="Logout"
+                                    >
+                                        <LogOut className="h-5 w-5" />
+                                    </button>
                                     <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-violet-500 to-fuchsia-500 p-[2px]">
                                         <div className="h-full w-full rounded-full bg-white dark:bg-black">
                                             {/* eslint-disable-next-line @next/next/no-img-element */}
