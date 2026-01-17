@@ -11,6 +11,7 @@ type WardrobeItem = {
     bg_color: string;
     created: string;
     status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+    error_message?: string;
 };
 
 export default function WardrobePage() {
@@ -24,7 +25,7 @@ export default function WardrobePage() {
 
     const fetchWardrobe = async () => {
         try {
-            const response: any = await apiFetch("/pixel/wardrobe/");
+            const response: any = await apiFetch("/pixel/wardrobe");
             // The API returns { data: [...] } or just [...]? checking previous logs it seems to be { data: [...] } if wrapped, 
             // but the user's screenshot showed a direct array `data: [...]`. Wait, the screenshot shows `data: [...]` inside a wrapper?
             // "data": [ { "id": 16, ... }, ... ]
@@ -134,9 +135,14 @@ export default function WardrobePage() {
                                             className="h-full w-full object-contain drop-shadow-md transition-transform duration-500 group-hover:scale-110"
                                         />
                                     ) : (
-                                        <div className="flex flex-col items-center gap-2 text-gray-400">
+                                        <div className="flex flex-col items-center gap-2 text-gray-400 p-4 text-center">
                                             <Shirt className="h-8 w-8 opacity-20" />
                                             <span className="text-xs font-medium uppercase tracking-wider">{item.status}</span>
+                                            {item.status === 'FAILED' && item.error_message && (
+                                                <p className="text-[10px] text-red-500 mt-1 leading-tight break-words w-full">
+                                                    {item.error_message}
+                                                </p>
+                                            )}
                                         </div>
                                     )}
                                 </div>
