@@ -42,6 +42,7 @@ export default function LoginPage() {
                     user_name: username,
                     password: password,
                 }),
+                skipAuth: true,
             });
 
             console.log('Login successful:', data);

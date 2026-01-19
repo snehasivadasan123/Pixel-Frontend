@@ -3,8 +3,8 @@
 import { useState, useRef, DragEvent, useEffect } from 'react';
 import { MagicLoader } from '@/components/ui/loaders';
 import { useRouter } from 'next/navigation';
-import { User, Image as ImageIcon, Briefcase, Sun, Globe, Shirt } from 'lucide-react';
-import { apiFetch, Mockup, API_BASE_URL } from '@/lib/api';
+import { User, Image as ImageIcon, Briefcase, Sun, Globe, Shirt, Download } from 'lucide-react';
+import { apiFetch, Mockup, API_BASE_URL, MEDIA_BASE_URL } from '@/lib/api';
 
 export default function CreateMockupPage() {
     const router = useRouter();
@@ -157,7 +157,7 @@ export default function CreateMockupPage() {
             if (jobData.status === 'COMPLETED') {
                 let resultUrl = jobData.mockup || jobData.image;
                 if (resultUrl && !resultUrl.startsWith('http')) {
-                    resultUrl = `${API_BASE_URL}${resultUrl}`;
+                    resultUrl = `${MEDIA_BASE_URL}${resultUrl}`;
                 }
                 setPreviewUrl(resultUrl);
                 setIsGenerating(false);
@@ -181,7 +181,7 @@ export default function CreateMockupPage() {
                             clearInterval(pollInterval);
                             let resultUrl = job.mockup || job.image;
                             if (resultUrl && !resultUrl.startsWith('http')) {
-                                resultUrl = `${API_BASE_URL}${resultUrl}`;
+                                resultUrl = `${MEDIA_BASE_URL}${resultUrl}`;
                             }
                             setPreviewUrl(resultUrl);
                             setIsGenerating(false);
@@ -620,7 +620,35 @@ export default function CreateMockupPage() {
                         )}
 
                         {previewUrl ? (
-                            <img src={previewUrl} className="max-h-full max-w-full object-contain shadow-2xl rounded-lg" alt="Preview" />
+                            <div className="relative group h-full w-full flex items-center justify-center overflow-hidden">
+                                <img src={previewUrl} className="max-h-full max-w-full object-contain shadow-2xl rounded-lg" alt="Preview" />
+                                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                    <button
+                                        onClick={async () => {
+                                            if (!previewUrl) return;
+                                            try {
+                                                const response = await fetch(previewUrl);
+                                                const blob = await response.blob();
+                                                const url = window.URL.createObjectURL(blob);
+                                                const link = document.createElement('a');
+                                                link.href = url;
+                                                link.download = `mockup-${Date.now()}.png`;
+                                                document.body.appendChild(link);
+                                                link.click();
+                                                link.remove();
+                                                window.URL.revokeObjectURL(url);
+                                            } catch (error) {
+                                                console.error('Download failed:', error);
+                                                window.open(previewUrl, '_blank');
+                                            }
+                                        }}
+                                        className="p-2.5 bg-white/90 rounded-full shadow-lg hover:bg-white text-gray-700 hover:text-violet-600 transition-all transform hover:scale-105"
+                                        title="Download Image"
+                                    >
+                                        <Download className="h-5 w-5" />
+                                    </button>
+                                </div>
+                            </div>
                         ) : (
                             <div className="text-center">
                                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { useTheme } from 'next-themes';
 import {
@@ -26,9 +26,15 @@ export default function DashboardLayout({
     children: React.ReactNode;
 }) {
     const pathname = usePathname();
+    const router = useRouter(); // Use the hook (make sure to import useRouter from next/navigation)
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const { theme, setTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
+
+    // Helper to handle navigation
+    const navigate = (path: string) => {
+        router.push(path);
+    };
 
     useEffect(() => {
         setMounted(true);
@@ -142,9 +148,10 @@ export default function DashboardLayout({
                             <div className="flex items-center justify-between gap-2 px-2">
                                 <div className="flex items-center gap-2">
                                     <button
+                                        type="button"
                                         onClick={() => {
                                             clearAccessToken();
-                                            window.location.href = '/login';
+                                            router.push('/login');
                                         }}
                                         className="rounded-full p-2 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-500 dark:text-gray-400 dark:hover:bg-red-900/20 dark:hover:text-red-400"
                                         title="Logout"

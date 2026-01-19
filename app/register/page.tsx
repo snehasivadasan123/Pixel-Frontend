@@ -62,6 +62,7 @@ export default function RegisterPage() {
                     first_name: username.split(' ')[0] || username, // approximate
                     last_name: username.split(' ').slice(1).join(' ') || '',
                 }),
+                skipAuth: true,
             });
 
             console.log('Registration successful');

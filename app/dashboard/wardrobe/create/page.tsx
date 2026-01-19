@@ -2,8 +2,9 @@
 
 import { useState, useRef, DragEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Image as ImageIcon, Palette, Upload, X, Check, CloudLightning, Save } from "lucide-react";
-import { apiFetch } from "@/lib/api";
+import { Image as ImageIcon, Palette, Upload, X, Check, CloudLightning, Save, ArrowRight } from "lucide-react";
+import { apiFetch, MEDIA_BASE_URL, API_BASE_URL } from "@/lib/api";
+import { MagicLoader } from "@/components/ui/loaders";
 
 export default function CreateWardrobePage() {
     const router = useRouter();
@@ -12,6 +13,7 @@ export default function CreateWardrobePage() {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [isSuccess, setIsSuccess] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isDragging, setIsDragging] = useState(false);
 
@@ -34,6 +36,7 @@ export default function CreateWardrobePage() {
 
     const handleFileSelect = (file: File) => {
         setError(null);
+        setIsSuccess(false);
         if (!file.type.startsWith("image/")) {
             setError("Please upload an image file (JPG, PNG, WEBP).");
             return;
@@ -76,13 +79,55 @@ export default function CreateWardrobePage() {
             formData.append('input_image', selectedFile);
             formData.append('bg_color', selectedColorId);
 
-            await apiFetch('/pixel/wardrobe', {
+            // 1. Start the upload/processing job
+            const response: any = await apiFetch('/pixel/wardrobe', {
                 method: 'POST',
                 body: formData,
             });
 
-            // Redirect on success
-            router.push("/dashboard/library");
+            // Assuming response contains the created item with an ID
+            const newItemId = response.id || (response.data && response.data.id);
+
+            if (!newItemId) {
+                // Determine if it was just a quick success or failure
+                // If no ID, maybe just redirect? But user wants animation.
+                // Let's assume we need an ID to poll.
+                router.push("/dashboard/library");
+                return;
+            }
+
+            // 2. Poll for status
+            const pollInterval = setInterval(async () => {
+                try {
+                    // Try fetching specific item if endpoint exists, otherwise list
+                    // Using list for now as safer bet based on prev file
+                    const listResponse: any = await apiFetch('/pixel/wardrobe');
+                    const list = Array.isArray(listResponse) ? listResponse : (listResponse.data || []);
+                    const item = list.find((i: any) => i.id === newItemId);
+
+                    if (item) {
+                        if (item.status === 'COMPLETED') {
+                            clearInterval(pollInterval);
+                            let finalImage = item.image;
+                            if (finalImage && !finalImage.startsWith('http')) {
+                                finalImage = `${MEDIA_BASE_URL}${finalImage}`;
+                            }
+                            setPreviewUrl(finalImage);
+                            setIsProcessing(false);
+                            setIsSuccess(true);
+                            // Optional: Show success state or "Add Another"
+                        } else if (item.status === 'FAILED') {
+                            clearInterval(pollInterval);
+                            setError(item.error_message || "Processing failed.");
+                            setIsProcessing(false);
+                        }
+                    }
+                } catch (err) {
+                    console.error("Polling error", err);
+                    // Don't stop polling immediately on one network glip, but maybe limit retries?
+                    // For now simple infinite poll until success/fail
+                }
+            }, 2000);
 
         } catch (err: any) {
             console.error(err);
@@ -197,22 +242,44 @@ export default function CreateWardrobePage() {
                     </div>
 
                     {/* Action Button */}
-                    <button
-                        onClick={handleSave}
-                        disabled={!selectedFile || isProcessing}
-                        className={`w-full py-4 rounded-xl flex items-center justify-center gap-2 font-bold text-white shadow-lg transition-all ${!selectedFile || isProcessing
-                            ? "bg-gray-300 dark:bg-gray-800 cursor-not-allowed"
-                            : "bg-gradient-to-r from-violet-600 to-indigo-600 hover:shadow-indigo-500/30 active:scale-[0.98]"
-                            }`}
-                    >
-                        {isProcessing ? (
-                            <span className="animate-pulse">Processing...</span>
-                        ) : (
-                            <>
-                                <Save className="h-5 w-5" /> Save to Wardrobe
-                            </>
-                        )}
-                    </button>
+                    {!isSuccess ? (
+                        <button
+                            onClick={handleSave}
+                            disabled={!selectedFile || isProcessing}
+                            className={`w-full py-4 rounded-xl flex items-center justify-center gap-2 font-bold text-white shadow-lg transition-all ${!selectedFile || isProcessing
+                                ? "bg-gray-300 dark:bg-gray-800 cursor-not-allowed"
+                                : "bg-gradient-to-r from-violet-600 to-indigo-600 hover:shadow-indigo-500/30 active:scale-[0.98]"
+                                }`}
+                        >
+                            {isProcessing ? (
+                                <span className="animate-pulse">Processing...</span>
+                            ) : (
+                                <>
+                                    <Save className="h-5 w-5" /> Save to Wardrobe
+                                </>
+                            )}
+                        </button>
+                    ) : (
+                        <div className="flex flex-col gap-3 animate-enter">
+                            <button
+                                onClick={() => {
+                                    setSelectedFile(null);
+                                    setPreviewUrl(null);
+                                    setIsSuccess(false);
+                                    // Reset color if needed or keep it
+                                }}
+                                className="w-full py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-violet-600 bg-violet-50 hover:bg-violet-100 dark:bg-violet-900/20 dark:text-violet-300 dark:hover:bg-violet-900/30 transition-all active:scale-[0.98]"
+                            >
+                                <Upload className="h-5 w-5" /> Add Another Item
+                            </button>
+                            <button
+                                onClick={() => router.push('/dashboard/wardrobe')}
+                                className="w-full py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-white bg-gray-900 hover:bg-black dark:bg-white dark:text-black dark:hover:bg-gray-200 transition-all active:scale-[0.98] shadow-lg"
+                            >
+                                View Wardrobe <ArrowRight className="h-5 w-5" />
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Right Panel: Preview */}
@@ -225,6 +292,13 @@ export default function CreateWardrobePage() {
 
                     {previewUrl ? (
                         <div className="relative z-10 p-10 w-full h-full flex items-center justify-center">
+
+                            {isProcessing && (
+                                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-white/80 backdrop-blur-md dark:bg-black/80 rounded-2xl">
+                                    <MagicLoader text="Processing Wardrobe Item..." />
+                                </div>
+                            )}
+
                             {/* In a real app, we might use an AI service to remove background here */}
                             <img
                                 src={previewUrl}

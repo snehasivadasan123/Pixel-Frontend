@@ -1,4 +1,5 @@
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+export const MEDIA_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || API_BASE_URL;
 
 export interface User {
     user_id: string;
@@ -45,15 +46,19 @@ export const clearAccessToken = () => {
 
 interface FetchOptions extends RequestInit {
     headers?: Record<string, string>;
+    skipAuth?: boolean;
 }
 
 export const apiFetch = async (endpoint: string, options: FetchOptions = {}) => {
     const token = getAccessToken();
     const headers = { ...options.headers };
 
-    if (token) {
+    if (token && !options.skipAuth) {
         headers['Authorization'] = `Bearer ${token}`;
     }
+
+    // Bypass ngrok browser warning
+    headers['ngrok-skip-browser-warning'] = 'true';
 
     // Ensure Content-Type is JSON unless strictly not needed (e.g. FormData)
     if (!(options.body instanceof FormData) && !headers['Content-Type']) {
